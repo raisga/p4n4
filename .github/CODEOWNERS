@@ -1,0 +1,10 @@
+# CODEOWNERS for raisga/p4n4 (umbrella)
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @raisga/core
+
+# Architecture and ADRs require core review
+/docs/adr/           @raisga/core
+/ARCHITECTURE.md     @raisga/core
+/SECURITY.md         @raisga/core
