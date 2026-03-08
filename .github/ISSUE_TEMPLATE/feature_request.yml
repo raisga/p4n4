@@ -1,0 +1,38 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+labels: ["type: feature"]
+body:
+  - type: dropdown
+    id: stack
+    attributes:
+      label: Target stack / repo
+      options:
+        - p4n4-iot
+        - p4n4-ai
+        - p4n4-edge
+        - p4n4-cli
+        - p4n4-templates
+        - p4n4-docs
+        - Cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem does this feature solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

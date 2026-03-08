@@ -1,0 +1,40 @@
+name: Template Submission
+description: Submit a community template to the p4n4-templates registry
+labels: ["type: feature", "stack: cli"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [TEMPLATE_GUIDE.md](https://github.com/raisga/p4n4-templates/blob/main/TEMPLATE_GUIDE.md)
+        before submitting.
+
+  - type: input
+    id: name
+    attributes:
+      label: Template short-name
+      description: Used in `p4n4 template install <name>`. Lowercase, hyphens only.
+      placeholder: my-factory-template
+    validations:
+      required: true
+
+  - type: input
+    id: repo
+    attributes:
+      label: Repository URL
+      placeholder: https://github.com/your-org/your-template-repo.git
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: One sentence describing what the template sets up.
+    validations:
+      required: true
+
+  - type: input
+    id: tags
+    attributes:
+      label: Tags (comma-separated)
+      placeholder: manufacturing, vibration, edge-impulse
