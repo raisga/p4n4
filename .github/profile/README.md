@@ -18,6 +18,7 @@
 
 ```bash
 pip install p4n4
-p4n4 init
-p4n4 up --all
+p4n4 init my-project
+cd my-project
+p4n4 up
 ```

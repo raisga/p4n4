@@ -126,55 +126,49 @@ p4n4 --version
 p4n4 init my-project
 ```
 
-The interactive wizard asks:
+The interactive wizard prompts for InfluxDB org, timezone, and admin passwords. When the `ai` layer is active it also prompts for Letta, n8n, and n8n encryption key values. All secrets default to randomly generated values if left blank.
 
-- **Project name** — used as a prefix for container names.
-- **Stacks to enable** — `iot`, `ai`, `edge` (pick one or more; IoT is the foundation).
-
-After completion your project directory looks like this:
+After completion your project directory looks like this (IoT layer):
 
 ```
 my-project/
-├── .p4n4.json                  ← project manifest
-├── .env                        ← generated secrets (never commit)
-├── .env.example                ← safe to commit
-├── .gitignore
-├── docker-compose.iot.yml
-├── docker-compose.ai.yml       ← if ai was selected
-├── docker-compose.edge.yml     ← if edge was selected
-├── mosquitto/config/
-│   ├── mosquitto.conf
-│   └── acl
-├── node-red/
-│   ├── flows.json
-│   └── settings.js
-├── influxdb/config/
-│   └── influxdb.conf
-└── grafana/provisioning/
-    ├── datasources/influxdb.yaml
-    └── dashboards/p4n4-base.json
+├── .p4n4.json                       ← project manifest
+├── .env                             ← generated secrets (never commit)
+├── docker-compose.yml               ← sourced from p4n4-iot
+├── config/
+│   ├── mosquitto/
+│   │   ├── mosquitto.conf
+│   │   ├── passwd.example
+│   │   └── acl.example
+│   ├── node-red/
+│   │   ├── settings.js
+│   │   └── flows.json
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/datasources.yml
+│           └── dashboards/
+└── scripts/
+    ├── init-buckets.sh
+    └── selector.sh
 ```
 
 ### 3. Review and edit secrets
 
 ```bash
-# See generated values (masked)
-p4n4 secret show
-
-# Regenerate all passwords and tokens
-p4n4 secret rotate
+# Rotate all passwords and tokens with new random values
+p4n4 secret
 ```
 
 Change any remaining placeholders in `.env` before starting. At minimum confirm:
 
-- `INFLUXDB_ADMIN_TOKEN` — must be the same value in every stack that references it
+- `INFLUXDB_TOKEN` — must be the same value in every stack that references it
 - `GRAFANA_PASSWORD` — change before exposing to any network
 
 ### 4. Start the IoT stack
 
 ```bash
 cd my-project
-p4n4 up iot
+p4n4 up
 ```
 
 This automatically creates the `p4n4-net` Docker bridge network, then starts services in order:
@@ -187,7 +181,7 @@ This automatically creates the `p4n4-net` Docker bridge network, then starts ser
 Watch startup:
 
 ```bash
-p4n4 logs iot
+p4n4 logs
 ```
 
 ### 5. Verify services
@@ -207,7 +201,7 @@ All four services should show `running`. Open the dashboards:
 ### 6. Add the AI stack (optional)
 
 ```bash
-p4n4 up ai
+p4n4 up --ai
 ```
 
 This starts Ollama, Letta, and n8n attached to the existing `p4n4-net` network.
@@ -215,9 +209,9 @@ This starts Ollama, Letta, and n8n attached to the existing `p4n4-net` network.
 Pull a model for Ollama:
 
 ```bash
-./ollama/pull-models.sh llama3.2
+./scripts/pull-models.sh llama3.2
 # or interactively:
-docker exec my-project-ollama ollama pull llama3.2
+docker exec p4n4-ollama ollama pull llama3.2
 ```
 
 | Service | URL | Credentials |
@@ -226,29 +220,30 @@ docker exec my-project-ollama ollama pull llama3.2
 | Letta | http://localhost:8283 | `LETTA_SERVER_PASSWORD` from `.env` |
 | Ollama API | http://localhost:11434 | no auth |
 
-Starter n8n workflows (alert enrichment, scheduled digest, device onboarding, incident escalation) are in `n8n/workflows/` — import them via the n8n UI.
+Starter n8n workflows (alert enrichment, scheduled digest, device onboarding, incident escalation) are in `config/n8n/workflows/` — import them via the n8n UI.
 
 ### 7. Add the Edge stack (optional)
 
 Requires an [Edge Impulse](https://edgeimpulse.com/) account and a trained `.eim` model file.
 
+> **Note:** `p4n4 ei` and `p4n4 add` CLI commands are not yet implemented. Use the manual approach below.
+
 ```bash
-# Add to existing project
-p4n4 add edge
-
-# Deploy your model
-p4n4 ei deploy path/to/model.eim
-
-# Start the runner
-p4n4 up edge
+git clone https://github.com/raisga/p4n4-edge.git
+cd p4n4-edge
+cp .env.example .env
+# Edit .env — set MQTT credentials to match p4n4-iot .env
+make deploy-model MODEL=~/Downloads/my-model.eim
+make up
 ```
 
-The runner publishes inference results to the `inference/results` MQTT topic. Pick them up in Node-RED to store in InfluxDB or trigger n8n workflows.
+The runner subscribes to `sensors/raw` on MQTT, runs inference, and publishes results to `inference/results`. Pick them up in Node-RED to store in InfluxDB or trigger n8n workflows.
 
 Check runner status:
 
 ```bash
-p4n4 ei status
+p4n4 up --edge
+curl http://localhost:8080/health
 ```
 
 ### 8. Test the data pipeline
@@ -291,7 +286,7 @@ cd ..
 git clone https://github.com/raisga/p4n4-ai.git
 cd p4n4-ai
 cp .env.example .env
-# Edit .env — INFLUXDB_ADMIN_TOKEN must match p4n4-iot/.env
+# Edit .env — INFLUXDB_TOKEN must match p4n4-iot/.env
 docker compose up -d
 cd ..
 ```
@@ -322,7 +317,7 @@ docker compose up -d
 | n8n | `5678` | ai |
 | Letta | `8283` | ai |
 | Ollama API | `11434` | ai |
-| Edge Impulse Runner | no port (publishes to MQTT) | edge |
+| Edge Impulse Runner | `8080` (health endpoint) | edge |
 
 ---
 
@@ -345,8 +340,10 @@ Browse and install pre-built project configurations:
 
 ```bash
 p4n4 template search
-p4n4 template install factory-baseline
+p4n4 template apply factory-baseline
 ```
+
+> **Note:** `p4n4 template` commands are not yet implemented.
 
 | Template | Stacks | Description |
 |----------|--------|-------------|
