@@ -1,3 +1,24 @@
 [submodule "docs"]
 	path = docs
 	url = git@github.com:raisga/p4n4-docs.git
+[submodule "docker/iot"]
+	path = docker/iot
+	url = git@github.com:raisga/p4n4-iot.git
+[submodule "docker/ai"]
+	path = docker/ai
+	url = git@github.com:raisga/p4n4-ai.git
+[submodule "docker/edge"]
+	path = docker/edge
+	url = git@github.com:raisga/p4n4-edge.git
+[submodule "shared/lib"]
+	path = shared/lib
+	url = git@github.com:raisga/p4n4-lib.git
+[submodule "shared/templates"]
+	path = shared/templates
+	url = git@github.com:raisga/p4n4-templates.git
+[submodule "client/cli"]
+	path = client/cli
+	url = git@github.com:raisga/p4n4-cli.git
+[submodule "client/api"]
+	path = client/api
+	url = git@github.com:raisga/p4n4-api.git

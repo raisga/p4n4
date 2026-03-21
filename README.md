@@ -2,7 +2,7 @@
 
 > Self-hosted IoT + GenAI + Edge AI platform built on Docker Compose.
 
-p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference. It combines a proven IoT data stack (MQTT · InfluxDB · Node-RED · Grafana) with a self-hosted GenAI layer (Ollama · Letta · n8n) and an Edge Impulse inference stack — all wired together through a single CLI.
+p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference. It is composed of three Docker-based service stacks — **MING** (IoT), **GenAI**, and **Edge AI** — exposed to clients through a shared library (`p4n4-lib`) that abstracts all service interactions. Clients interact with the stacks via the `p4n4-cli` command-line tool or the `p4n4-api` REST gateway.
 
 ---
 
@@ -32,13 +32,32 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
 
 ## Repository Map
 
+**Docker stacks**
+
+| Repository | Description |
+|------------|-------------|
+| [p4n4-iot](https://github.com/raisga/p4n4-iot) | MING stack: Mosquitto · InfluxDB · Node-RED · Grafana |
+| [p4n4-ai](https://github.com/raisga/p4n4-ai) | GenAI stack: Ollama · Letta · n8n |
+| [p4n4-edge](https://github.com/raisga/p4n4-edge) | Edge AI stack: Edge Impulse runner |
+
+**Clients**
+
+| Repository | Description |
+|------------|-------------|
+| [p4n4-cli](https://github.com/raisga/p4n4-cli) | Python CLI (`pip install p4n4`) |
+| [p4n4-api](https://github.com/raisga/p4n4-api) | REST API gateway (port 8000) |
+
+**Shared library**
+
+| Repository | Description |
+|------------|-------------|
+| [p4n4-lib](https://github.com/raisga/p4n4-lib) | Common library — mediates between Docker service stacks and CLI/API clients |
+
+**Other**
+
 | Repository | Description |
 |------------|-------------|
 | **[p4n4](https://github.com/raisga/p4n4)** | This repo — architecture, ADRs, cross-cutting docs |
-| [p4n4-iot](https://github.com/raisga/p4n4-iot) | IoT stack: Mosquitto · InfluxDB · Node-RED · Grafana |
-| [p4n4-ai](https://github.com/raisga/p4n4-ai) | GenAI stack: Ollama · Letta · n8n |
-| [p4n4-edge](https://github.com/raisga/p4n4-edge) | Edge Impulse inference stack |
-| [p4n4-cli](https://github.com/raisga/p4n4-cli) | Python CLI (`pip install p4n4`) |
 | [p4n4-templates](https://github.com/raisga/p4n4-templates) | Community template registry |
 | [p4n4-docs](https://github.com/raisga/p4n4-docs) | Full technical documentation site |
 
@@ -50,31 +69,54 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
   Sensors / Devices
         │
         ▼ MQTT
-  ┌─────────────┐     ┌────────────┐     ┌──────────┐
-  │  Mosquitto  │────►│  Node-RED  │────►│ InfluxDB │
-  └─────────────┘     └─────┬──────┘     └────┬─────┘
-                            │                 │
-                            ▼                 ▼
-                         ┌──────┐         ┌─────────┐
-                         │  n8n │         │ Grafana │
-                         └──┬───┘         └─────────┘
-                            │
-                    ┌───────┴────────┐
-                    ▼                ▼
-                 ┌───────┐      ┌────────┐
-                 │ Letta │      │ Ollama │
-                 └───────┘      └────────┘
+  ┌──────────────────────────────────────────────────────┐
+  │  p4n4-iot  (MING stack)                              │
+  │  ┌─────────────┐  ┌────────────┐  ┌─────────────┐    │
+  │  │  Mosquitto  │─►│  Node-RED  │─►│  InfluxDB   │    │
+  │  └─────────────┘  └────────────┘  └──────┬──────┘    │
+  │                                          │           │
+  │                                   ┌──────▼──────┐    │
+  │                                   │   Grafana   │    │
+  │                                   └─────────────┘    │
+  └──────────────────────────────────────────────────────┘
 
-  Edge Impulse Runner ──► MQTT (inference/results)
+  ┌──────────────────────────────────────────────────────┐
+  │  p4n4-ai  (GenAI stack)                              │
+  │   ┌────────┐      ┌───────┐      ┌──────────────┐    │
+  │   │ Ollama │      │ Letta │      │     n8n      │    │
+  │   └────────┘      └───────┘      └──────────────┘    │
+  └──────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────┐
+  │  p4n4-edge  (Edge AI stack)                          │
+  │          ┌───────────────────────────┐               │
+  │          │   Edge Impulse Runner     │               │
+  │          └───────────────────────────┘               │
+  └──────────────────────────────────────────────────────┘
+
+  All stacks share the p4n4-net Docker bridge network.
+
+  ┌──────────────────────────────────────────────────────┐
+  │  p4n4-lib  (common library)                          │
+  │  service clients · auth · manifest · models          │
+  └────────────────────┬─────────────────────────────────┘
+                       │
+           ┌───────────┴───────────┐
+           ▼                       ▼
+    ┌─────────────┐        ┌───────────────┐
+    │  p4n4-cli   │        │   p4n4-api    │
+    │  (Python)   │        │  (REST :8000) │
+    └─────────────┘        └───────────────┘
 ```
 
 **Data flow:**
-1. Devices publish sensor readings over MQTT.
+1. Devices publish sensor readings over MQTT to Mosquitto.
 2. Node-RED routes data into InfluxDB and triggers automation rules.
 3. Grafana visualises time-series data in real time.
-4. n8n bridges IoT events to the GenAI layer — enriching alerts, scheduling digests, escalating incidents.
+4. n8n bridges IoT events to the GenAI layer — enriching alerts, scheduling digests, and escalating incidents.
 5. Letta agents backed by Ollama LLMs provide long-memory, tool-calling intelligence.
-6. The Edge stack runs trained Edge Impulse models on-device and publishes results back to MQTT.
+6. The Edge stack runs trained Edge Impulse models on-device and publishes inference results back to MQTT.
+7. `p4n4-lib` abstracts all service interactions; both `p4n4-cli` and `p4n4-api` use it as their interface to the stacks.
 
 All three stacks communicate over a shared `p4n4-net` Docker bridge network owned by `p4n4-iot`.
 
@@ -318,17 +360,32 @@ docker compose up -d
 | Letta | `8283` | ai |
 | Ollama API | `11434` | ai |
 | Edge Impulse Runner | `8080` (health endpoint) | edge |
+| **p4n4 REST API** | **`8000`** | **api** |
 
 ---
 
 ## Stack Reference
 
+**Docker stacks**
+
 | Repo | Purpose | Quick commands |
 |------|---------|---------------|
-| [p4n4-iot](https://github.com/raisga/p4n4-iot) | IoT foundation | `make up` · `make status` · `make test-mqtt` |
-| [p4n4-ai](https://github.com/raisga/p4n4-ai) | Local LLMs + agents + automation | `docker compose up -d` · `./ollama/pull-models.sh` |
-| [p4n4-edge](https://github.com/raisga/p4n4-edge) | On-device ML inference | `p4n4 ei deploy` · `p4n4 ei run` |
-| [p4n4-cli](https://github.com/raisga/p4n4-cli) | Project lifecycle management | `p4n4 --help` |
+| [p4n4-iot](https://github.com/raisga/p4n4-iot) | MING stack — IoT data foundation | `make up` · `make status` · `make test-mqtt` |
+| [p4n4-ai](https://github.com/raisga/p4n4-ai) | GenAI stack — local LLMs, agents, automation | `docker compose up -d` · `./ollama/pull-models.sh` |
+| [p4n4-edge](https://github.com/raisga/p4n4-edge) | Edge AI stack — on-device ML inference | `docker compose up -d` · `curl localhost:8080/health` |
+
+**Clients**
+
+| Repo | Purpose | Quick commands |
+|------|---------|---------------|
+| [p4n4-cli](https://github.com/raisga/p4n4-cli) | Python CLI — project lifecycle management | `p4n4 --help` |
+| [p4n4-api](https://github.com/raisga/p4n4-api) | REST API gateway (port 8000) | `docker compose up -d` · `curl localhost:8000/health` |
+
+**Shared library**
+
+| Repo | Purpose |
+|------|---------|
+| [p4n4-lib](https://github.com/raisga/p4n4-lib) | Common library used by `p4n4-cli` and `p4n4-api` to interact with the Docker stacks |
 
 Full CLI reference: [p4n4-docs / cli-reference.md](https://github.com/raisga/p4n4-docs/blob/main/docs/cli-reference.md)
 
