@@ -22,3 +22,6 @@
 [submodule "client/api"]
 	path = client/api
 	url = git@github.com:raisga/p4n4-api.git
+[submodule "client/dashboard"]
+	path = client/dashboard
+	url = git@github.com:raisga/p4n4-dashboard.git
