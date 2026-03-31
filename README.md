@@ -15,7 +15,10 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
 | [p4n4-edge](https://github.com/raisga/p4n4-edge) | Edge AI stack: Edge Impulse runner |
 | [p4n4-cli](https://github.com/raisga/p4n4-cli) | Python CLI (`pip install p4n4`) |
 | [p4n4-api](https://github.com/raisga/p4n4-api) | REST API gateway (port 8000) |
+| [p4n4-dashboard](https://github.com/raisga/p4n4-dashboard) | Web dashboard client |
 | [p4n4-lib](https://github.com/raisga/p4n4-lib) | Common library — mediates between stacks and CLI/API clients |
+| [p4n4-templates](https://github.com/raisga/p4n4-templates) | Community template registry |
+| [p4n4-hw](https://github.com/raisga/p4n4-hw) | Hardware reference designs and schematics |
 | [p4n4-docs](https://github.com/raisga/p4n4-docs) | Full technical documentation site |
 
 ---

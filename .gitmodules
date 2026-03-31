@@ -10,6 +10,9 @@
 [submodule "docker/edge"]
 	path = docker/edge
 	url = git@github.com:raisga/p4n4-edge.git
+[submodule "shared/hw"]
+	path = shared/hw
+	url = git@github.com:raisga/p4n4-hw.git
 [submodule "shared/lib"]
 	path = shared/lib
 	url = git@github.com:raisga/p4n4-lib.git
