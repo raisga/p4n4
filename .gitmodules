@@ -28,3 +28,6 @@
 [submodule "client/dashboard"]
 	path = client/dashboard
 	url = git@github.com:raisga/p4n4-dashboard.git
+[submodule "demo/emu"]
+	path = demo/emu
+	url = git@github.com:raisga/p4n4-emu.git
