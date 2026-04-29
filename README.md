@@ -31,11 +31,13 @@ mono_p4n4/
 ├── shared/
 │   ├── lib/          # Common library — mediates between stacks and clients
 │   ├── templates/    # Community template registry
-│   └── hw/           # Hardware reference designs and schematics
+│   └── hw/           # Hardware reference designs and RPi5 scripts
 ├── client/
 │   ├── cli/          # Python CLI (`pip install p4n4`)
 │   ├── api/          # REST API gateway (port 8000)
 │   └── dashboard/    # Web dashboard client
+├── demo/
+│   └── emu/          # Hardware emulator — workstation dev with Docker resource limits
 └── docs/             # Full technical documentation site
 ```
 
@@ -50,6 +52,7 @@ mono_p4n4/
 | `client/cli` | [p4n4-cli](https://github.com/raisga/p4n4-cli) |
 | `client/api` | [p4n4-api](https://github.com/raisga/p4n4-api) |
 | `client/dashboard` | [p4n4-dashboard](https://github.com/raisga/p4n4-dashboard) |
+| `demo/emu` | [p4n4-emu](https://github.com/raisga/p4n4-emu) |
 | `docs` | [p4n4-docs](https://github.com/raisga/p4n4-docs) |
 
 ---
