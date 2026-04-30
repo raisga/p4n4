@@ -24,7 +24,7 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
 
 ```
 mono_p4n4/
-├── docker/
+├── stacks/
 │   ├── iot/          # MING stack: Mosquitto · InfluxDB · Node-RED · Grafana
 │   ├── ai/           # GenAI stack: Ollama · Letta · n8n
 │   └── edge/         # Edge AI stack: Edge Impulse runner
@@ -43,9 +43,9 @@ mono_p4n4/
 
 | Submodule | GitHub |
 |-----------|--------|
-| `docker/iot` | [p4n4-iot](https://github.com/raisga/p4n4-iot) |
-| `docker/ai` | [p4n4-ai](https://github.com/raisga/p4n4-ai) |
-| `docker/edge` | [p4n4-edge](https://github.com/raisga/p4n4-edge) |
+| `stacks/iot` | [p4n4-iot](https://github.com/raisga/p4n4-iot) |
+| `stacks/ai` | [p4n4-ai](https://github.com/raisga/p4n4-ai) |
+| `stacks/edge` | [p4n4-edge](https://github.com/raisga/p4n4-edge) |
 | `shared/lib` | [p4n4-lib](https://github.com/raisga/p4n4-lib) |
 | `shared/templates` | [p4n4-templates](https://github.com/raisga/p4n4-templates) |
 | `shared/hw` | [p4n4-hw](https://github.com/raisga/p4n4-hw) |
@@ -64,16 +64,16 @@ mono_p4n4/
         │ MQTT
         ▼
   ┌─────────────────────────────────────────┐
-  │  docker/iot  (MING stack)               │
+  │  stacks/iot  (MING stack)               │
   │  Mosquitto ──► Node-RED ──► InfluxDB    │
   │                                Grafana  │
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
-  │  docker/ai  (GenAI stack)               │
+  │  stacks/ai  (GenAI stack)               │
   │  Ollama · Letta · n8n                   │
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
-  │  docker/edge  (Edge AI stack)           │
+  │  stacks/edge  (Edge AI stack)           │
   │  Edge Impulse Runner                    │
   └─────────────────────────────────────────┘
 
@@ -122,18 +122,18 @@ The CLI scaffolds compose files, generates secrets, and starts the stacks in the
 
 ```bash
 # IoT stack
-cd docker/iot
+cd stacks/iot
 cp .env.example .env  # edit passwords
 docker network create --driver bridge --subnet 172.20.0.0/16 p4n4-net
 docker compose up -d && cd ../..
 
 # AI stack (after IoT is healthy)
-cd docker/ai
-cp .env.example .env  # INFLUXDB_TOKEN must match docker/iot/.env
+cd stacks/ai
+cp .env.example .env  # INFLUXDB_TOKEN must match stacks/iot/.env
 docker compose up -d && cd ../..
 
 # Edge stack (optional, requires Edge Impulse account + .eim model)
-cd docker/edge
+cd stacks/edge
 cp .env.example .env
 docker compose up -d
 ```
