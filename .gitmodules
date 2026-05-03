@@ -10,11 +10,11 @@
 [submodule "stacks/edge"]
 	path = stacks/edge
 	url = git@github.com:raisga/p4n4-edge.git
-[submodule "shared/hw"]
-	path = shared/hw
+[submodule "core/hw"]
+	path = core/hw
 	url = git@github.com:raisga/p4n4-hw.git
-[submodule "shared/lib"]
-	path = shared/lib
+[submodule "core/lib"]
+	path = core/lib
 	url = git@github.com:raisga/p4n4-lib.git
 [submodule "shared/templates"]
 	path = shared/templates
