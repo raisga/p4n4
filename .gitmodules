@@ -31,3 +31,9 @@
 [submodule "demo/emu"]
 	path = demo/emu
 	url = git@github.com:raisga/p4n4-emu.git
+[submodule "websites/p4n4.com"]
+	path = websites/p4n4.com
+	url = git@github.com:jraleman/p4n4.com.git
+[submodule "websites/blog"]
+	path = websites/blog
+	url = git@github.com:raisga/p4n4-blog.git
