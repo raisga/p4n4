@@ -1,5 +1,5 @@
-[submodule "docs"]
-	path = docs
+[submodule "web/docs"]
+	path = web/docs
 	url = git@github.com:raisga/p4n4-docs.git
 [submodule "stacks/iot"]
 	path = stacks/iot
@@ -16,24 +16,24 @@
 [submodule "core/lib"]
 	path = core/lib
 	url = git@github.com:raisga/p4n4-lib.git
-[submodule "shared/templates"]
-	path = shared/templates
-	url = git@github.com:raisga/p4n4-templates.git
-[submodule "client/cli"]
-	path = client/cli
+[submodule "clients/cli"]
+	path = clients/cli
 	url = git@github.com:raisga/p4n4-cli.git
-[submodule "client/api"]
-	path = client/api
+[submodule "clients/api"]
+	path = clients/api
 	url = git@github.com:raisga/p4n4-api.git
-[submodule "client/dashboard"]
-	path = client/dashboard
+[submodule "clients/dashboard"]
+	path = clients/dashboard
 	url = git@github.com:raisga/p4n4-dashboard.git
-[submodule "demo/emu"]
-	path = demo/emu
+[submodule "tools/templates"]
+	path = tools/templates
+	url = git@github.com:raisga/p4n4-templates.git
+[submodule "tools/emu"]
+	path = tools/emu
 	url = git@github.com:raisga/p4n4-emu.git
-[submodule "websites/p4n4.com"]
-	path = websites/p4n4.com
+[submodule "web/p4n4.com"]
+	path = web/p4n4.com
 	url = git@github.com:jraleman/p4n4.com.git
-[submodule "websites/blog"]
-	path = websites/blog
+[submodule "web/blog"]
+	path = web/blog
 	url = git@github.com:raisga/p4n4-blog.git
