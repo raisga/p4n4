@@ -8,6 +8,8 @@
 
 p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference, composed of three Docker-based service stacks — **MING** (IoT), **GenAI**, and **Edge AI**.
 
+> **Trusted networks only.** p4n4 0.2.x is meant for development and trusted local networks. Don't expose its service ports to the internet or to networks you don't control. See [SECURITY.md](SECURITY.md).
+
 ---
 
 ## What can you build?
@@ -23,21 +25,20 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
 ## Repository Map
 
 ```
-mono_p4n4/
+p4n4/
 ├── stacks/
-│   ├── iot/          # MING stack: Mosquitto · InfluxDB · Node-RED · Grafana
-│   ├── ai/           # GenAI stack: Ollama · Letta · n8n
-│   └── edge/         # Edge AI stack: Edge Impulse runner
+│   ├── iot/          # MING stack: Mosquitto · InfluxDB · Node-RED · Grafana (+ Telegraf)
+│   ├── ai/           # GenAI stack: Ollama (+ Letta · n8n)
+│   └── edge/         # Edge AI stack: ONNX / Edge Impulse runner
 ├── core/
 │   ├── lib/          # Common library — mediates between stacks and clients
 │   └── hw/           # Hardware reference designs and RPi5 scripts
-├── shared/
-│   └── templates/    # Community template registry
-├── client/
+├── clients/
 │   ├── cli/          # Python CLI (`pip install p4n4`)
 │   ├── api/          # REST API gateway (port 8000)
-│   └── dashboard/    # Web dashboard client
-├── demo/
+│   └── dashboard/    # Dashboard: web service (port 8088) + desktop/mobile apps
+├── tools/
+│   ├── templates/    # Template registry (projects + dashboard themes)
 │   └── emu/          # Hardware emulator — workstation dev with Docker resource limits
 └── docs/             # Full technical documentation site
 ```
@@ -49,12 +50,15 @@ mono_p4n4/
 | `stacks/edge` | [p4n4-edge](https://github.com/raisga/p4n4-edge) |
 | `core/lib` | [p4n4-lib](https://github.com/raisga/p4n4-lib) |
 | `core/hw` | [p4n4-hw](https://github.com/raisga/p4n4-hw) |
-| `shared/templates` | [p4n4-templates](https://github.com/raisga/p4n4-templates) |
-| `client/cli` | [p4n4-cli](https://github.com/raisga/p4n4-cli) |
-| `client/api` | [p4n4-api](https://github.com/raisga/p4n4-api) |
-| `client/dashboard` | [p4n4-dashboard](https://github.com/raisga/p4n4-dashboard) |
-| `demo/emu` | [p4n4-emu](https://github.com/raisga/p4n4-emu) |
+| `tools/templates` | [p4n4-templates](https://github.com/raisga/p4n4-templates) |
+| `clients/cli` | [p4n4-cli](https://github.com/raisga/p4n4-cli) |
+| `clients/api` | [p4n4-api](https://github.com/raisga/p4n4-api) |
+| `clients/dashboard` | [p4n4-dashboard](https://github.com/raisga/p4n4-dashboard) |
+| `tools/emu` | [p4n4-emu](https://github.com/raisga/p4n4-emu) |
 | `docs` | [p4n4-docs](https://github.com/raisga/p4n4-docs) |
+
+The websites ([p4n4-blog](https://github.com/raisga/p4n4-blog) and p4n4.com) are separate
+repositories, not submodules of this one.
 
 ---
 
@@ -68,19 +72,22 @@ mono_p4n4/
   │  stacks/iot  (MING stack)               │
   │  Mosquitto ──► Node-RED ──► InfluxDB    │
   │                                Grafana  │
+  │  (Telegraf: host + broker metrics)      │
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
   │  stacks/ai  (GenAI stack)               │
-  │  Ollama · Letta · n8n                   │
+  │  Ollama  (Letta · n8n)                  │
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
   │  stacks/edge  (Edge AI stack)           │
-  │  Edge Impulse Runner                    │
+  │  Inference runner (ONNX / Edge Impulse) │
   └─────────────────────────────────────────┘
 
   All stacks share the p4n4-net Docker bridge network.
+  Every service is optional; ( ) marks the ones off by default.
 
-  core/lib ──► client/cli · client/api · client/dashboard
+  core/lib ──► clients/cli · clients/api
+  clients/dashboard ── web UI on :8088, proxying p4n4-api, Ollama and Letta
 ```
 
 ---
@@ -139,6 +146,8 @@ cp .env.example .env
 docker compose up -d
 ```
 
+> **Choosing services:** every service is optional. Each stack's `.env` lists the ones that start in `COMPOSE_PROFILES`; the defaults are the MING stack (`mqtt,influxdb,node-red,grafana`), Ollama (`ollama`) and the inference runner (`ei-runner`). Add `telegraf` in `stacks/iot` for host and broker metrics, or `letta,n8n` in `stacks/ai`. See each stack's README.
+
 > **Cross-stack secrets:** `INFLUXDB_ADMIN_TOKEN`, `INFLUXDB_ORG`, and `INFLUXDB_BUCKET` must be identical across all stack `.env` files.
 
 ---
@@ -151,11 +160,13 @@ docker compose up -d
 | InfluxDB | `8086` | iot |
 | Node-RED | `1880` | iot |
 | Grafana | `3000` | iot |
-| n8n | `5678` | ai |
-| Letta | `8283` | ai |
+| Telegraf (optional) | — | iot |
+| n8n (optional) | `5678` | ai |
+| Letta (optional) | `8283` | ai |
 | Ollama API | `11434` | ai |
 | Edge Impulse Runner | `8080` | edge |
 | p4n4 REST API | `8000` | api |
+| p4n4 Dashboard (web) | `8088` | dashboard |
 
 ---
 

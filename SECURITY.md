@@ -31,16 +31,24 @@ This policy covers all repositories in the `raisga` organisation:
 - `raisga/p4n4-iot`
 - `raisga/p4n4-ai`
 - `raisga/p4n4-edge`
+- `raisga/p4n4-lib`
+- `raisga/p4n4-hw`
 - `raisga/p4n4-cli`
+- `raisga/p4n4-api`
+- `raisga/p4n4-dashboard`
 - `raisga/p4n4-templates`
+- `raisga/p4n4-emu`
 - `raisga/p4n4-docs`
 
 ## Security best practices
 
 When deploying p4n4:
 
-1. Change all default passwords in `.env` before first run.
-2. Do not expose services directly to the internet without a reverse proxy + TLS.
-3. Use `p4n4 secret rotate` regularly to refresh credentials.
-4. Keep Docker images up to date (`p4n4 upgrade`).
+1. Run p4n4 0.2.x on trusted networks only. Its services listen on all interfaces, and
+   several of them (MQTT, InfluxDB, Ollama, n8n) aren't hardened for untrusted networks yet.
+2. Use the secrets `p4n4 init` generates, or change every default password in `.env`
+   before the first run.
+3. Do not expose services directly to the internet without a reverse proxy + TLS.
+4. `p4n4 secret rotate` only updates `.env`. InfluxDB, Grafana and n8n read most of those
+   values at first setup only, so rotate those credentials inside the services as well.
 5. Review Mosquitto ACL rules for your deployment.
