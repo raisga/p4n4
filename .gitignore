@@ -1,10 +1,5 @@
-# Maintainer-only notes: keep out of this public repository.
-# CODE_REVIEW.md lists unfixed security issues with working payloads (see SECURITY.md).
-CODE_REVIEW.md
-rpi_os_doc.html
-
-# Website repos (blog, p4n4.com): cloned separately, not part of this repo.
-web/
-
 # Claude Code project skills: local for now.
 .claude/skills/
+
+# Dev venv (scripts/dev setup)
+.venv/

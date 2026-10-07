@@ -1,33 +1,41 @@
 [submodule "docs"]
 	path = docs
-	url = https://github.com/raisga/p4n4-docs.git
+	url = git@github.com:raisga/p4n4-docs.git
 [submodule "stacks/iot"]
 	path = stacks/iot
-	url = https://github.com/raisga/p4n4-iot.git
+	url = git@github.com:raisga/p4n4-iot.git
 [submodule "stacks/ai"]
 	path = stacks/ai
-	url = https://github.com/raisga/p4n4-ai.git
+	url = git@github.com:raisga/p4n4-ai.git
 [submodule "stacks/edge"]
 	path = stacks/edge
-	url = https://github.com/raisga/p4n4-edge.git
+	url = git@github.com:raisga/p4n4-edge.git
 [submodule "core/hw"]
-	path = core/hw
-	url = https://github.com/raisga/p4n4-hw.git
+	path = tools/hw
+	url = git@github.com:raisga/p4n4-hw.git
 [submodule "core/lib"]
-	path = core/lib
-	url = https://github.com/raisga/p4n4-lib.git
+	path = lib
+	url = git@github.com:raisga/p4n4-lib.git
 [submodule "clients/cli"]
-	path = clients/cli
-	url = https://github.com/raisga/p4n4-cli.git
+	path = cli
+	url = git@github.com:raisga/p4n4-cli.git
 [submodule "clients/api"]
-	path = clients/api
-	url = https://github.com/raisga/p4n4-api.git
+	path = api
+	url = git@github.com:raisga/p4n4-api.git
 [submodule "clients/dashboard"]
-	path = clients/dashboard
-	url = https://github.com/raisga/p4n4-dashboard.git
+	path = dashboard
+	url = git@github.com:raisga/p4n4-dashboard.git
 [submodule "tools/templates"]
 	path = tools/templates
-	url = https://github.com/raisga/p4n4-templates.git
+	url = git@github.com:raisga/p4n4-templates.git
 [submodule "tools/emu"]
 	path = tools/emu
-	url = https://github.com/raisga/p4n4-emu.git
+	url = git@github.com:raisga/p4n4-emu.git
+[submodule "web/blog"]
+	path = web/blog
+	url = git@github.com:raisga/p4n4-blog.git
+	update = none
+[submodule "web/p4n4.com"]
+	path = web/p4n4.com
+	url = git@github.com:jraleman/p4n4.com.git
+	update = none

@@ -4,7 +4,8 @@
 # Default owners for everything
 * @raisga/core
 
-# Architecture and ADRs require core review
-/docs/adr/           @raisga/core
-/ARCHITECTURE.md     @raisga/core
+# Architecture and ADRs require core review. They live in the docs submodule
+# (docs/reference/architecture.md, docs/decisions/adr/), so here that means
+# its pin.
+/docs                @raisga/core
 /SECURITY.md         @raisga/core

@@ -15,7 +15,12 @@ body:
         - p4n4-iot
         - p4n4-ai
         - p4n4-edge
+        - p4n4-lib
         - p4n4-cli
+        - p4n4-api
+        - p4n4-dashboard
+        - p4n4-hw
+        - p4n4-emu
         - p4n4-templates
         - p4n4-docs
         - Other
@@ -54,6 +59,7 @@ body:
       placeholder: |
         - OS: Ubuntu 24.04
         - Docker: 26.1.4
-        - p4n4 CLI version: 0.1.0
+        - p4n4 CLI version (p4n4 --version): 0.2.0
+        - Docker Compose: 2.39.2
     validations:
       required: true
