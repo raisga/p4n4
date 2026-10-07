@@ -1,0 +1,373 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# scripts/dev: run a p4n4 project on this repo's code instead of `pip install p4n4`
+#
+#   lib, cli and api are installed editable into one venv (.venv at the repo
+#   root), so edits apply on the next command, or on save for the API. The
+#   dashboard runs with `flutter run` (hot reload) instead of its image, and
+#   `p4n4 init` scaffolds from the stacks/ and dashboard/ checkouts.
+#
+#   Symlink it onto your PATH to use it from any project:
+#     ln -s "$PWD/scripts/dev" ~/.local/bin/p4n4-dev
+# ==============================================================================
+
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+VENV=$ROOT/.venv
+API_PORT=${P4N4_API_PORT:-8000}
+WEB_PORT=${WEB_PORT:-8088}
+
+BOLD=$'\033[1m' CYAN=$'\033[0;36m' GREEN=$'\033[0;32m' YELLOW=$'\033[0;33m' RED=$'\033[0;31m' DIM=$'\033[2m' NC=$'\033[0m'
+say() { printf '%s==>%s %s\n' "$CYAN" "$NC" "$*" >&2; }
+die() { printf '%serror:%s %s\n' "$RED" "$NC" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+${BOLD}p4n4 dev${NC}: run a p4n4 project on this repo's lib, cli, api and dashboard
+
+${BOLD}Usage:${NC} scripts/dev <command> [args]
+
+  ${GREEN}setup${NC}                        Create .venv (uv) with lib, cli, api editable; flutter pub get
+  ${GREEN}p4n4${NC} <args…>                 The CLI from cli/. \`init\` scaffolds from stacks/ and dashboard/
+  ${GREEN}new${NC} <template> [dir]         Copy a template from tools/templates/projects, each layer's .env from its example
+  ${GREEN}api${NC} [project]                p4n4-api for the project, reloading on api/ and lib/ changes
+  ${GREEN}dashboard${NC} [project] [--theme]  The dashboard with hot reload on :$WEB_PORT (needs the API)
+  ${GREEN}up${NC} [project] [--theme] [--no-stack]
+                               Stack (\`p4n4 up\`, without the dashboard layer), API in the
+                               background, dashboard in front. Ctrl-C/q stops the API and
+                               dashboard; the stack keeps running (\`scripts/dev p4n4 down\`)
+  ${GREEN}which${NC}                        Which projects own the p4n4-* containers on this host
+  ${GREEN}status${NC} [project]             The project's API, dashboard and stack containers
+  ${GREEN}shell${NC}                        A shell with .venv active (\`p4n4\`, \`p4n4-api\` from this repo)
+
+  [project] is a p4n4 project directory (default: the one containing the current directory).
+  --theme applies the project's dashboard theme. It rewrites tracked files in dashboard/
+  (assets/brand, web/); undo with: cd dashboard && dart tool/brand.dart apply p4n4 --web-only
+
+${BOLD}Environment:${NC}
+  P4N4_API_HOST / P4N4_API_PORT  Where the API listens (default 127.0.0.1:$API_PORT; the dev
+                                 proxy expects :8000). For the dashboard *container*, use the
+                                 docker0 address, e.g. P4N4_API_HOST=172.17.0.1
+  P4N4_API_DEV_USERS             Demo accounts admin/power/normie, password p4n4 (default: true)
+  WEB_PORT                       Dashboard port (default 8088)
+EOF
+}
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+need_venv() {
+	[[ -x $VENV/bin/p4n4 && -x $VENV/bin/p4n4-api ]] || die "no dev venv yet: run scripts/dev setup"
+}
+
+# The project directory: $1, or the nearest directory up from here with a .p4n4.json
+project_dir() {
+	local dir=${1:-$PWD}
+	[[ -d $dir ]] || die "not a directory: $dir"
+	dir=$(cd "$dir" && pwd)
+	if [[ -z ${1:-} ]]; then
+		while [[ $dir != / && ! -f $dir/.p4n4.json ]]; do dir=$(dirname "$dir"); done
+	fi
+	[[ -f $dir/.p4n4.json ]] || die "not in a p4n4 project (no .p4n4.json in ${1:-$PWD} or above)"
+	printf '%s\n' "$dir"
+}
+
+# The project's layers from .p4n4.json, one per line
+layers() {
+	"$VENV/bin/python" -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["layers"]))' \
+		"$1/.p4n4.json"
+}
+
+api_env() {
+	local p=$1
+	export P4N4_PROJECT_DIR=$p
+	# Without it the API uses ~/.local/share/p4n4-api: a different database,
+	# where the project's accounts don't exist
+	export P4N4_API_DATA_DIR=${P4N4_API_DATA_DIR:-$p/.p4n4-api}
+	export P4N4_API_DEV_USERS=${P4N4_API_DEV_USERS:-true}
+	export P4N4_API_PORT=$API_PORT
+	mkdir -p "$P4N4_API_DATA_DIR"
+}
+
+run_api() {
+	api_env "$1"
+	exec "$VENV/bin/python" "$ROOT/scripts/dev_api.py"
+}
+
+wait_for_api() {
+	local url="http://${P4N4_API_HOST:-127.0.0.1}:$API_PORT/health" pid=$1 i
+	for i in $(seq 1 60); do
+		curl -fsS -o /dev/null "$url" 2>/dev/null && return 0
+		kill -0 "$pid" 2>/dev/null || return 1
+		sleep 0.5
+	done
+	return 1
+}
+
+# p4n4 projects with containers on this host, one line each, tab-separated:
+# the project directory (else Compose's working dir, else -), the Compose
+# project, its containers as "name (state), …"
+host_projects() {
+	"$VENV/bin/python" - <<'EOF'
+import sys
+
+from p4n4_lib import compose
+from p4n4_lib import manifest as mf
+
+try:
+    projects = compose.host_projects()
+except compose.DockerError as exc:
+    sys.exit(str(exc))
+for p in projects:
+    found = mf.find(p.working_dir) if p.working_dir and p.working_dir.is_dir() else None
+    root = found.parent if found else p.working_dir or "-"
+    names = ", ".join(f"{name} ({state})" for name, state in p.containers)
+    print(f"{root}\t{p.name or 'outside Compose'}\t{names}")
+EOF
+}
+
+# The process listening on a local TCP port as "<name> <pid>", or nothing when
+# the port is free or the process isn't ours (docker-proxy, another user)
+listener() {
+	ss -ltnpH "sport = :$1" 2>/dev/null |
+		sed -nE 's/.*users:\(\("([^"]+)",pid=([0-9]+).*/\1 \2/p' | head -n 1
+}
+
+port_open() { [[ -n $(ss -ltnH "sport = :$1" 2>/dev/null) ]]; }
+
+apply_theme() {
+	local p=$1
+	say "Applying the project's theme to dashboard/ (tracked files change)"
+	(cd "$ROOT/dashboard" && dart tool/brand.dart install "$p" --apply --web-only)
+}
+
+run_dashboard() {
+	say "Dashboard on http://localhost:$WEB_PORT (r: hot reload, R: restart, q: quit)"
+	cd "$ROOT/dashboard"
+	# Same as `make run`: the dev server proxies /api/ and /health to localhost:8000
+	# (web_dev_config.yaml), like the container's nginx
+	flutter run -d web-server --web-hostname 0.0.0.0 --web-port "$WEB_PORT" \
+		--dart-define=P4N4_DEV_PROXY=true --dart-define=P4N4_DEV_USERS=true
+}
+
+# Split `[project] [--flags]` into $PROJECT and the flags
+parse_project_args() {
+	PROJECT_ARG='' THEME=0 STACK=1
+	local arg
+	for arg in "$@"; do
+		case $arg in
+			--theme) THEME=1 ;;
+			--no-stack) STACK=0 ;;
+			-*) die "unknown option: $arg" ;;
+			*) [[ -z $PROJECT_ARG ]] || die "one project at a time"; PROJECT_ARG=$arg ;;
+		esac
+	done
+	PROJECT=$(project_dir "$PROJECT_ARG")
+}
+
+# ── commands ──────────────────────────────────────────────────────────────────
+
+cmd_setup() {
+	command -v uv >/dev/null || die "uv not found: https://docs.astral.sh/uv/"
+	say "Creating $VENV with lib, cli and api (editable)"
+	[[ -d $VENV ]] || uv venv --python '>=3.11' "$VENV"
+	# Not `uv run`/`uv sync` in a package dir: that swaps the editable lib for PyPI's
+	uv pip install --python "$VENV/bin/python" -e "$ROOT/lib[dev]" -e "$ROOT/cli[dev]" -e "$ROOT/api[dev]"
+	if command -v flutter >/dev/null; then
+		say "flutter pub get in dashboard/"
+		(cd "$ROOT/dashboard" && flutter pub get)
+	else
+		printf '%sflutter not found: skipping the dashboard%s\n' "$DIM" "$NC" >&2
+	fi
+	printf '\n%sReady.%s Try: scripts/dev new mqtt-influx-grafana-ollama /tmp/demo && scripts/dev up /tmp/demo\n' "$GREEN" "$NC"
+}
+
+cmd_p4n4() {
+	need_venv
+	if [[ ${1:-} == init ]]; then
+		local -a extra=()
+		local name src
+		# Local checkouts unless the command line names its own
+		for name in iot ai edge dashboard; do
+			[[ " $* " == *" --source-$name"* ]] && continue
+			src=$ROOT/stacks/$name
+			[[ $name == dashboard ]] && src=$ROOT/dashboard
+			extra+=("--source-$name" "$src")
+		done
+		exec "$VENV/bin/p4n4" "$@" "${extra[@]}"
+	fi
+	exec "$VENV/bin/p4n4" "$@"
+}
+
+cmd_new() {
+	local template=${1:-} dest=${2:-}
+	local templates=$ROOT/tools/templates/projects
+	if [[ -z $template ]]; then
+		printf 'Templates:\n' >&2
+		ls -1 "$templates" | sed 's/^/  /' >&2
+		die "usage: scripts/dev new <template> [dir]"
+	fi
+	[[ -f $templates/$template/.p4n4.json ]] || die "no template '$template' in $templates"
+	dest=${dest:-$PWD/$template}
+	[[ ! -e $dest ]] || die "$dest already exists"
+	need_venv
+	cp -r "$templates/$template" "$dest"
+	rm -rf "$dest/.pytest_cache"
+	local layer
+	while read -r layer; do
+		if [[ -f $dest/$layer/.env.example && ! -f $dest/$layer/.env ]]; then
+			cp "$dest/$layer/.env.example" "$dest/$layer/.env"
+		fi
+	done < <(layers "$dest")
+	printf '%sCreated%s %s from %s\n  Run it: scripts/dev up %s\n' "$GREEN" "$NC" "$dest" "$template" "$dest"
+}
+
+cmd_api() {
+	need_venv
+	parse_project_args "$@"
+	say "p4n4-api for $PROJECT on ${P4N4_API_HOST:-127.0.0.1}:$API_PORT (reloads on change)"
+	run_api "$PROJECT"
+}
+
+cmd_dashboard() {
+	command -v flutter >/dev/null || die "flutter not found"
+	parse_project_args "$@"
+	if ((THEME)); then apply_theme "$PROJECT"; fi
+	run_dashboard
+}
+
+cmd_up() {
+	need_venv
+	command -v flutter >/dev/null || die "flutter not found"
+	parse_project_args "$@"
+	local p=$PROJECT layer
+
+	if ((STACK)); then
+		# The dashboard layer is the released image on the same port: flutter replaces it
+		while read -r layer; do
+			if [[ $layer == dashboard ]]; then continue; fi
+			(cd "$p" && "$VENV/bin/p4n4" up "$layer")
+		done < <(layers "$p")
+	fi
+	if ((THEME)); then apply_theme "$p"; fi
+
+	local log=$p/.p4n4-api/dev-api.log
+	mkdir -p "$p/.p4n4-api"
+	say "p4n4-api in the background, log: $log"
+	(run_api "$p") >"$log" 2>&1 &
+	API_PID=$!
+	trap 'kill "$API_PID" 2>/dev/null; wait "$API_PID" 2>/dev/null; printf "%sStopped the API. The stack is still up: scripts/dev p4n4 down%s\n" "$DIM" "$NC" >&2' EXIT
+	wait_for_api "$API_PID" || { tail -n 30 "$log" >&2; die "p4n4-api didn't start (log above)"; }
+
+	if [[ ${P4N4_API_DEV_USERS:-true} == true ]]; then
+		printf '%sSign in as admin, power or normie, password p4n4%s\n' "$DIM" "$NC" >&2
+	fi
+	# Not exec: the EXIT trap stops the API when flutter quits
+	run_dashboard
+}
+
+cmd_which() {
+	need_venv
+	local here out root compose containers prev='' n=0
+	here=$(project_dir 2>/dev/null) || here=''
+	out=$(host_projects) || die "can't list containers (is the docker daemon running?)"
+	if [[ -z $out ]]; then
+		printf '%sNo p4n4 containers on this host.%s\n' "$GREEN" "$NC"
+		return
+	fi
+	while IFS=$'\t' read -r root compose containers; do
+		if [[ $root != "$prev" ]]; then
+			n=$((n + 1)) prev=$root
+			printf '%s%s%s' "$BOLD" "$root" "$NC"
+			if [[ $root == "$here" ]]; then printf '  %s(this project)%s' "$GREEN" "$NC"; fi
+			printf '\n'
+		fi
+		printf '  %-14s %s%s%s\n' "$compose" "$DIM" "$containers" "$NC"
+	done < <(sort -s -t $'\t' -k1,1 <<<"$out")
+
+	if ((n > 1)); then
+		printf '\n%sMore than one project has p4n4 containers.%s Only one can run at a time\n' "$YELLOW" "$NC"
+		printf '(fixed container names and ports). Stop them all: scripts/dev p4n4 down --all\n'
+	elif [[ -n $here && $prev != "$here" ]]; then
+		printf '\n%sThe running project is not this one (%s).%s Stop it first:\n' "$YELLOW" "$here" "$NC"
+		if [[ -d $prev ]]; then
+			printf '  cd %s && scripts/dev p4n4 down\n' "$prev"
+		else
+			printf '  scripts/dev p4n4 down --all\n'
+		fi
+	fi
+}
+
+cmd_status() {
+	need_venv
+	local p name pid serving url others
+	p=$(project_dir "${1:-}")
+	printf '%sProject%s    %s %s(%s)%s\n' "$BOLD" "$NC" "$p" "$DIM" "$(layers "$p" | paste -sd ' ')" "$NC"
+
+	url="http://${P4N4_API_HOST:-127.0.0.1}:$API_PORT"
+	printf '%sAPI%s        %s  ' "$BOLD" "$NC" "$url"
+	if ! port_open "$API_PORT"; then
+		printf '%snot running%s (scripts/dev api)\n' "$RED" "$NC"
+	else
+		read -r name pid <<<"$(listener "$API_PORT")"
+		if curl -fsS -m 2 -o /dev/null "$url/health" 2>/dev/null; then
+			printf '%shealthy%s' "$GREEN" "$NC"
+		else
+			printf '%sno answer on /health%s' "$YELLOW" "$NC"
+		fi
+		if [[ -n $pid ]]; then
+			# The project scripts/dev started it for, from its environment
+			serving=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^P4N4_PROJECT_DIR=//p')
+			printf ', %s pid %s' "$name" "$pid"
+			if [[ -z $serving ]]; then
+				printf ', %snot started by scripts/dev%s' "$DIM" "$NC"
+			elif [[ $serving != "$p" ]]; then
+				printf ', %sserving another project: %s%s' "$YELLOW" "$serving" "$NC"
+			fi
+		else
+			printf ', %sa container or another user%ss process%s' "$DIM" "'" "$NC"
+		fi
+		printf '\n'
+		if [[ -f $p/.p4n4-api/dev-api.log ]]; then
+			printf '           %slog: %s%s\n' "$DIM" "$p/.p4n4-api/dev-api.log" "$NC"
+		fi
+	fi
+
+	printf '%sDashboard%s  http://localhost:%s  ' "$BOLD" "$NC" "$WEB_PORT"
+	if ! port_open "$WEB_PORT"; then
+		printf '%snot running%s (scripts/dev dashboard)\n' "$RED" "$NC"
+	else
+		read -r name pid <<<"$(listener "$WEB_PORT")"
+		if [[ -n $pid ]]; then
+			printf '%sup%s, %s pid %s\n' "$GREEN" "$NC" "$name" "$pid"
+		else
+			printf '%sup%s, %sa container (p4n4-dashboard?) or another user%ss process%s\n' \
+				"$GREEN" "$NC" "$DIM" "'" "$NC"
+		fi
+	fi
+
+	# Another project's containers hold the names and ports this one needs
+	if others=$(host_projects 2>/dev/null); then
+		others=$(awk -F '\t' -v p="$p" '$1 != p {print $1}' <<<"$others" | sort -u | paste -sd ' ')
+		if [[ -n $others ]]; then
+			printf '%sElsewhere%s  %sp4n4 containers from %s%s (scripts/dev which)\n' \
+				"$BOLD" "$NC" "$YELLOW" "$others" "$NC"
+		fi
+	fi
+
+	printf '\n'
+	(cd "$p" && "$VENV/bin/p4n4" status) || true
+}
+
+cmd_shell() {
+	need_venv
+	say "Shell with $VENV active (exit to leave)"
+	VIRTUAL_ENV=$VENV PATH=$VENV/bin:$PATH exec "${SHELL:-bash}"
+}
+
+case ${1:-} in
+	setup | p4n4 | new | api | dashboard | up | which | status | shell)
+		cmd=$1; shift; "cmd_$cmd" "$@" ;;
+	-h | --help | help | '') usage ;;
+	*) usage >&2; die "unknown command: $1" ;;
+esac

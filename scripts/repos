@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# scripts/repos: every submodule at a glance
+#
+#   Branch, uncommitted changes, ahead/behind its upstream, commits since its
+#   last tag, and whether the superproject's pointer matches its HEAD. It never
+#   changes a working tree or index: `fetch` only updates remote-tracking refs.
+# ==============================================================================
+
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+
+BOLD=$'\033[1m' GREEN=$'\033[0;32m' YELLOW=$'\033[0;33m' RED=$'\033[0;31m' DIM=$'\033[2m' NC=$'\033[0m'
+die() { printf '%serror:%s %s\n' "$RED" "$NC" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+${BOLD}scripts/repos${NC}: the state of every submodule
+
+${BOLD}Usage:${NC} scripts/repos [command]
+
+  ${GREEN}status${NC}               One row per submodule (the default)
+  ${GREEN}fetch${NC}                git fetch every submodule, then status
+  ${GREEN}changes${NC} <path>       Commits since the submodule's last tag (release notes material)
+
+Columns: ${BOLD}changes${NC} uncommitted files · ${BOLD}upstream${NC} ↑ahead ↓behind its upstream
+(as of the last fetch) · ${BOLD}since tag${NC} commits after the newest tag · ${BOLD}pointer${NC} the
+superproject's recorded commit against the submodule's HEAD
+EOF
+}
+
+# Checked-out submodule paths, in .gitmodules order
+paths() {
+	git -C "$ROOT" config -f .gitmodules --get-regexp '\.path$' | while read -r _ path; do
+		[[ -e $ROOT/$path/.git ]] && printf '%s\n' "$path"
+	done
+}
+
+# Pad to a visible width: the colour codes don't count
+cell() { printf '%s%-*s%s' "$1" "$2" "$3" "$NC"; }
+
+row() {
+	local path=$1 dir=$ROOT/$1 branch head n up ab tag since pointer recorded
+	head=$(git -C "$dir" rev-parse HEAD)
+
+	if branch=$(git -C "$dir" symbolic-ref -q --short HEAD); then
+		branch=$(cell "" 18 "$branch")
+	else
+		branch=$(cell "$YELLOW" 18 "detached ${head:0:7}")
+	fi
+
+	n=$(git -C "$dir" status --porcelain | wc -l)
+	if ((n)); then n=$(cell "$YELLOW" 8 "$n"); else n=$(cell "$DIM" 8 "clean"); fi
+
+	if up=$(git -C "$dir" rev-parse -q --verify '@{upstream}' 2>/dev/null); then
+		read -r ahead behind < <(git -C "$dir" rev-list --left-right --count "HEAD...$up")
+		if ((ahead + behind == 0)); then
+			ab=$(cell "$DIM" 10 "=")
+		else
+			ab=$(cell "$YELLOW" 10 "$( ((ahead)) && printf '↑%d ' "$ahead")$( ((behind)) && printf '↓%d' "$behind")")
+		fi
+	else
+		ab=$(cell "$DIM" 10 "-")
+	fi
+
+	if tag=$(git -C "$dir" describe --tags --abbrev=0 2>/dev/null); then
+		since=$(git -C "$dir" rev-list --count "$tag..HEAD")
+		since=$(cell "" 16 "$tag +$since")
+	else
+		since=$(cell "$DIM" 16 "no tags")
+	fi
+
+	recorded=$(git -C "$ROOT" ls-files -s -- "$path" | awk '$1 == "160000" {print $2}')
+	if [[ -z $recorded ]]; then
+		pointer="${RED}not recorded${NC}"
+	elif [[ $recorded == "$head" ]]; then
+		pointer="${GREEN}up to date${NC}"
+	elif git -C "$dir" merge-base --is-ancestor "$recorded" HEAD 2>/dev/null; then
+		pointer="${YELLOW}HEAD +$(git -C "$dir" rev-list --count "$recorded..HEAD")${NC}"
+	else
+		pointer="${YELLOW}differs (${recorded:0:7})${NC}"
+	fi
+
+	printf '%-17s %s %s %s %s %s\n' "$path" "$branch" "$n" "$ab" "$since" "$pointer"
+}
+
+cmd_status() {
+	printf '%s%-17s %-18s %-8s %-10s %-16s %s%s\n' "$BOLD" repo branch changes upstream "since tag" pointer "$NC"
+	local path
+	while read -r path; do row "$path"; done < <(paths)
+}
+
+cmd_fetch() {
+	local path
+	while read -r path; do
+		printf '%s%s%s\n' "$DIM" "fetching $path" "$NC" >&2
+		git -C "$ROOT/$path" fetch --quiet --tags || printf '%s  fetch failed: %s%s\n' "$RED" "$path" "$NC" >&2
+	done < <(paths)
+	cmd_status
+}
+
+cmd_changes() {
+	local path=${1:-}
+	path=${path%/}
+	[[ -n $path ]] || die "usage: scripts/repos changes <path>  (e.g. lib, stacks/iot)"
+	[[ -e $ROOT/$path/.git ]] || die "not a checked-out submodule: $path"
+	local tag range
+	if tag=$(git -C "$ROOT/$path" describe --tags --abbrev=0 2>/dev/null); then
+		range=$tag..HEAD
+		printf '%s%s since %s%s\n' "$BOLD" "$path" "$tag" "$NC"
+	else
+		range=HEAD
+		printf '%s%s: no tags, whole history%s\n' "$BOLD" "$path" "$NC"
+	fi
+	git -C "$ROOT/$path" log --no-merges --format='- %s %C(dim)(%h, %as)%C(reset)' "$range"
+}
+
+case ${1:-status} in
+	status | fetch | changes)
+		cmd=${1:-status}; shift || true; "cmd_$cmd" "$@" ;;
+	-h | --help | help) usage ;;
+	*) usage >&2; die "unknown command: $1" ;;
+esac

@@ -3,3 +3,25 @@
 
 # Dev venv (scripts/dev setup)
 .venv/
+
+# Python caches (scripts/dev_api.py, uv run)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# A dev project's API data and logs, if one is made inside the repo
+.p4n4-api/
+
+# Local env files: secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# scripts/doctor: check that this checkout and machine can run p4n4 from source
+#
+#   Tools, submodules, the dev venv (scripts/dev setup) and the host ports the
+#   stacks publish. Read-only: it reports, it never fixes. Exits 1 when a check
+#   fails, so scripts can gate on it; warnings don't change the exit status.
+# ==============================================================================
+
+set -uo pipefail
+
+ROOT=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+VENV=$ROOT/.venv
+
+BOLD=$'\033[1m' GREEN=$'\033[0;32m' YELLOW=$'\033[0;33m' RED=$'\033[0;31m' DIM=$'\033[2m' NC=$'\033[0m'
+FAILED=0 WARNED=0
+ok() { printf '  %s✓%s %s\n' "$GREEN" "$NC" "$*"; }
+warn() { printf '  %s!%s %s\n' "$YELLOW" "$NC" "$*"; WARNED=$((WARNED + 1)); }
+fail() { printf '  %s✗%s %s\n' "$RED" "$NC" "$*"; FAILED=$((FAILED + 1)); }
+hint() { printf '    %s%s%s\n' "$DIM" "$*" "$NC"; }
+section() { printf '\n%s%s%s\n' "$BOLD" "$*" "$NC"; }
+
+case ${1:-} in
+	'') ;;
+	-h | --help)
+		printf 'Usage: scripts/doctor\n\nChecks tools, submodules, the dev venv and host ports. Exits 1 on a failed check.\n'
+		exit 0 ;;
+	*) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
+esac
+
+# ── tools ─────────────────────────────────────────────────────────────────────
+
+section Tools
+DOCKER_UP=0
+tool() { # tool <command> <required|optional> <what for>
+	if command -v "$1" >/dev/null; then
+		ok "$1"
+	elif [[ $2 == required ]]; then
+		fail "$1 not found ($3)"
+	else
+		warn "$1 not found ($3)"
+	fi
+}
+tool git required "everything"
+tool curl required "scripts/dev waits on the API with it"
+tool uv required "scripts/dev setup: https://docs.astral.sh/uv/"
+tool docker required "the stacks"
+tool flutter optional "the dashboard with hot reload"
+tool dart optional "dashboard themes (tool/brand.dart)"
+tool gh optional "releases and CI runs"
+if command -v docker >/dev/null; then
+	if v=$(docker compose version --short 2>/dev/null); then
+		ok "docker compose $v"
+	else
+		fail "docker compose (v2 plugin) not found"
+	fi
+	if docker info >/dev/null 2>&1; then
+		DOCKER_UP=1
+		ok "docker daemon reachable"
+	else
+		fail "docker daemon not reachable"
+		hint "start it: sudo systemctl start docker (and add yourself to the docker group)"
+	fi
+fi
+
+# ── submodules ────────────────────────────────────────────────────────────────
+
+section Submodules
+while read -r key path; do
+	name=${key#submodule.}
+	name=${name%.path}
+	update=$(git -C "$ROOT" config -f .gitmodules --get "submodule.$name.update" || true)
+	dir=$ROOT/$path
+	if [[ ! -e $dir/.git ]]; then
+		if [[ $update == none ]]; then
+			printf '  %s- %s not checked out (update = none, optional)%s\n' "$DIM" "$path" "$NC"
+		else
+			fail "$path not checked out"
+			hint "git submodule update --init $path"
+		fi
+		continue
+	fi
+	problems=()
+	# A checkout the superproject doesn't record: fresh clones won't get it
+	[[ $(git -C "$ROOT" ls-files -s -- "$path" | cut -d' ' -f1) == 160000 ]] ||
+		problems+=("not recorded in the superproject index (git add $path)")
+	branch=$(git -C "$dir" symbolic-ref -q --short HEAD) ||
+		problems+=("detached HEAD at $(git -C "$dir" rev-parse --short HEAD) (git -C $path checkout main)")
+	if ((${#problems[@]})); then
+		warn "$path: ${problems[0]}"
+		for p in "${problems[@]:1}"; do hint "$p"; done
+	else
+		ok "$path ($branch)"
+	fi
+done < <(git -C "$ROOT" config -f .gitmodules --get-regexp '\.path$')
+
+# ── dev venv ──────────────────────────────────────────────────────────────────
+
+section "Dev venv (.venv)"
+if [[ ! -x $VENV/bin/python ]]; then
+	fail "no .venv: run scripts/dev setup"
+else
+	# Each package must import from this checkout: `uv sync` in a package dir
+	# quietly swaps the editable p4n4-lib for PyPI's
+	while IFS=$'\t' read -r mod where; do
+		case $where in
+			"$ROOT"/*) ok "$mod → ${where#"$ROOT"/}" ;;
+			MISSING) fail "$mod not installed: run scripts/dev setup" ;;
+			*) fail "$mod comes from $where, not this checkout"; hint "re-run scripts/dev setup" ;;
+		esac
+	done < <("$VENV/bin/python" - <<'EOF'
+import importlib.util
+for mod in ("p4n4_lib", "p4n4", "p4n4_api"):
+    spec = importlib.util.find_spec(mod)
+    print(f"{mod}\t{spec.origin.rsplit('/', 2)[0] if spec and spec.origin else 'MISSING'}")
+EOF
+	)
+fi
+
+# ── ports ─────────────────────────────────────────────────────────────────────
+
+section "Host ports"
+# Published by the stacks, p4n4-api and the dashboard (one project per host)
+PORTS=(
+	1883:mqtt 9001:mqtt-ws 8086:influxdb 1880:node-red 3000:grafana
+	11434:ollama 8283:letta 5678:n8n 8080:ei-runner 8000:p4n4-api 8088:dashboard
+)
+declare -A HOLDER=()
+if ((DOCKER_UP)); then
+	# Ports a p4n4 container publishes are expected to be busy
+	while IFS=$'\t' read -r name ports; do
+		for p in $(grep -oE ':[0-9]+->' <<<"$ports" | tr -d ':>-' | sort -u); do HOLDER[$p]=$name; done
+	done < <(docker ps --filter name=p4n4- --format '{{.Names}}\t{{.Ports}}')
+fi
+if command -v ss >/dev/null; then
+	listening=$(ss -ltnH 2>/dev/null | awk '{print $4}' | grep -oE '[0-9]+$' | sort -u)
+	for entry in "${PORTS[@]}"; do
+		port=${entry%%:*} svc=${entry#*:}
+		if ! grep -qx "$port" <<<"$listening"; then
+			ok "$port free ($svc)"
+		elif [[ -n ${HOLDER[$port]:-} ]]; then
+			ok "$port in use by ${HOLDER[$port]}"
+		else
+			proc=$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oE '"[^"]+"' | head -1 | tr -d '"')
+			if [[ $port == 8000 || $port == 8088 ]] && [[ $proc == python* || $proc == dart* || $proc == flutter* ]]; then
+				ok "$port in use by $proc (scripts/dev, probably)"
+			else
+				warn "$port ($svc) taken by ${proc:-another process}"
+			fi
+		fi
+	done
+else
+	warn "ss not found: skipping the port checks"
+fi
+
+if ((DOCKER_UP)); then
+	if docker network inspect p4n4-net >/dev/null 2>&1; then
+		ok "network p4n4-net exists"
+	else
+		printf '  %s- network p4n4-net not created yet (the iot layer creates it; ai and edge need it)%s\n' "$DIM" "$NC"
+	fi
+fi
+
+# ── summary ───────────────────────────────────────────────────────────────────
+
+printf '\n'
+if ((FAILED)); then
+	printf '%s%d failed%s, %d warning(s)\n' "$RED" "$FAILED" "$NC" "$WARNED"
+	exit 1
+fi
+printf '%sAll good%s%s\n' "$GREEN" "$NC" "$( ((WARNED)) && printf ', %d warning(s)' "$WARNED")"
