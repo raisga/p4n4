@@ -8,7 +8,7 @@
 
 p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference, composed of three Docker-based service stacks — **MING** (IoT), **GenAI**, and **Edge AI**.
 
-> **Trusted networks only.** p4n4 0.2.x is meant for development and trusted local networks. Don't expose its service ports to the internet or to networks you don't control. See [SECURITY.md](SECURITY.md).
+> **Trusted networks only.** p4n4 0.2.x is meant for development and trusted local networks. Don't expose its service ports to the internet or to networks you don't control. See the [Security guide](https://github.com/raisga/p4n4-docs/blob/main/guides/security.md).
 
 ---
 
@@ -93,7 +93,7 @@ Maintainers with access check them out with `git submodule update --init --check
   Every service is optional; ( ) marks the ones off by default.
 
   lib ──► cli · api
-  dashboard ── web UI on :8088, proxying p4n4-api, Ollama and Letta
+  dashboard ── web UI on :8088, proxying p4n4-api (the assistant included) and optionally Grafana
 ```
 
 ---
@@ -194,7 +194,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-For responsible disclosure of vulnerabilities, see [SECURITY.md](SECURITY.md). Do not open public issues for security reports.
+Report vulnerabilities through a [private security advisory](https://github.com/raisga/p4n4/security/advisories/new); it covers every repository in the `raisga` organisation. Do not open public issues for security reports. The [Security guide](https://github.com/raisga/p4n4-docs/blob/main/guides/security.md) covers hardening and secret rotation.
 
 ## License
 

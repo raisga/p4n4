@@ -33,17 +33,19 @@ ${BOLD}Usage:${NC} scripts/dev <command> [args]
   ${GREEN}new${NC} <template> [dir]         Copy a template from tools/templates/projects, each layer's .env from its example
   ${GREEN}api${NC} [project]                p4n4-api for the project, reloading on api/ and lib/ changes
   ${GREEN}dashboard${NC} [project] [--theme]  The dashboard with hot reload on :$WEB_PORT (needs the API)
-  ${GREEN}up${NC} [project] [--theme] [--no-stack]
+  ${GREEN}up${NC} [project] [--no-theme] [--no-stack]
                                Stack (\`p4n4 up\`, without the dashboard layer), API in the
-                               background, dashboard in front. Ctrl-C/q stops the API and
-                               dashboard; the stack keeps running (\`scripts/dev p4n4 down\`)
+                               background, dashboard in front, with the project's theme.
+                               Ctrl-C/q stops the API and dashboard; the stack keeps running
+                               (\`scripts/dev p4n4 down\`)
   ${GREEN}which${NC}                        Which projects own the p4n4-* containers on this host
   ${GREEN}status${NC} [project]             The project's API, dashboard and stack containers
   ${GREEN}shell${NC}                        A shell with .venv active (\`p4n4\`, \`p4n4-api\` from this repo)
 
   [project] is a p4n4 project directory (default: the one containing the current directory).
-  --theme applies the project's dashboard theme. It rewrites tracked files in dashboard/
-  (assets/brand, web/); undo with: cd dashboard && dart tool/brand.dart apply p4n4 --web-only
+  --theme applies the project's dashboard theme (the p4n4 one when it has none); \`up\` does
+  it unless --no-theme. It rewrites tracked files in dashboard/ (assets/brand, web/); undo
+  with: cd dashboard && dart tool/brand.dart apply p4n4 --web-only
 
 ${BOLD}Environment:${NC}
   P4N4_API_HOST / P4N4_API_PORT  Where the API listens (default 127.0.0.1:$API_PORT; the dev
@@ -135,8 +137,21 @@ listener() {
 
 port_open() { [[ -n $(ss -ltnH "sport = :$1" 2>/dev/null) ]]; }
 
+# The project's dashboard.theme from .p4n4.json, or nothing
+theme_of() {
+	"$VENV/bin/python" -c 'import json,sys; print(json.load(open(sys.argv[1])).get("dashboard", {}).get("theme") or "")' \
+		"$1/.p4n4.json"
+}
+
+# The project's theme, or the default p4n4 one so another project's brand doesn't linger
 apply_theme() {
 	local p=$1
+	need_venv
+	if [[ -z $(theme_of "$p") ]]; then
+		say "No dashboard theme in the project: applying the p4n4 one to dashboard/"
+		(cd "$ROOT/dashboard" && dart tool/brand.dart apply p4n4 --web-only)
+		return
+	fi
 	say "Applying the project's theme to dashboard/ (tracked files change)"
 	(cd "$ROOT/dashboard" && dart tool/brand.dart install "$p" --apply --web-only)
 }
@@ -150,13 +165,15 @@ run_dashboard() {
 		--dart-define=P4N4_DEV_PROXY=true --dart-define=P4N4_DEV_USERS=true
 }
 
-# Split `[project] [--flags]` into $PROJECT and the flags
+# Split `[project] [--flags]` into $PROJECT and the flags. $THEME starts at
+# $DEFAULT_THEME (0 unless the caller sets it)
 parse_project_args() {
-	PROJECT_ARG='' THEME=0 STACK=1
+	PROJECT_ARG='' THEME=${DEFAULT_THEME:-0} STACK=1
 	local arg
 	for arg in "$@"; do
 		case $arg in
 			--theme) THEME=1 ;;
+			--no-theme) THEME=0 ;;
 			--no-stack) STACK=0 ;;
 			-*) die "unknown option: $arg" ;;
 			*) [[ -z $PROJECT_ARG ]] || die "one project at a time"; PROJECT_ARG=$arg ;;
@@ -219,6 +236,28 @@ cmd_new() {
 			cp "$dest/$layer/.env.example" "$dest/$layer/.env"
 		fi
 	done < <(layers "$dest")
+	# COMPOSE_PROJECT_NAME as `p4n4 init` sets it, so the copy's volumes aren't
+	# shared with every other project's iot/ or ai/ (Compose's default name)
+	"$VENV/bin/python" - "$dest" <<'EOF'
+import json
+import sys
+from pathlib import Path
+
+from p4n4_lib import env as envutil
+from p4n4_lib import layout
+
+dest = Path(sys.argv[1])
+layers = json.loads((dest / ".p4n4.json").read_text())["layers"]
+for name in layers:
+    env = layout.layer_dir(dest, layers, name) / ".env"
+    if env.is_file() and "COMPOSE_PROJECT_NAME" not in envutil.load(env):
+        envutil.set_value(
+            env,
+            "COMPOSE_PROJECT_NAME",
+            layout.compose_project_name(dest.name, layers, name),
+            comment="Compose project name: keeps this project's volumes apart from other projects'.",
+        )
+EOF
 	printf '%sCreated%s %s from %s\n  Run it: scripts/dev up %s\n' "$GREEN" "$NC" "$dest" "$template" "$dest"
 }
 
@@ -239,7 +278,7 @@ cmd_dashboard() {
 cmd_up() {
 	need_venv
 	command -v flutter >/dev/null || die "flutter not found"
-	parse_project_args "$@"
+	DEFAULT_THEME=1 parse_project_args "$@"
 	local p=$PROJECT layer
 
 	if ((STACK)); then
