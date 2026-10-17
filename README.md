@@ -6,7 +6,7 @@
 
 > Self-hosted IoT + GenAI + Edge AI platform built on Docker Compose.
 
-p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference, composed of three Docker-based service stacks — **MING** (IoT), **GenAI**, and **Edge AI**.
+p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelines with local AI inference. Its core is two Docker-based service stacks — **MING** (IoT) and **AI** (GenAI plus Edge Impulse / ONNX inference) — and optional services live in a third, **extras**, that nothing in the core depends on.
 
 > **Trusted networks only.** p4n4 0.2.x is meant for development and trusted local networks. Don't expose its service ports to the internet or to networks you don't control. See the [Security guide](https://github.com/raisga/p4n4-docs/blob/main/guides/security.md).
 
@@ -28,8 +28,8 @@ p4n4 is an open-source, multi-stack platform for building end-to-end IoT pipelin
 p4n4/
 ├── stacks/
 │   ├── iot/          # MING stack: Mosquitto · InfluxDB · Node-RED · Grafana (+ Telegraf)
-│   ├── ai/           # GenAI stack: Ollama (+ Letta · n8n)
-│   └── edge/         # Edge AI stack: ONNX / Edge Impulse runner
+│   ├── ai/           # AI stack: Ollama (+ Letta · n8n · System 1 · ONNX / Edge Impulse runner)
+│   └── extras/       # Optional services, none by default (formerly edge/)
 ├── lib/              # Common library — mediates between stacks and clients
 ├── cli/              # Python CLI (`pip install p4n4`)
 ├── api/              # REST API gateway (port 8000)
@@ -50,7 +50,7 @@ p4n4/
 |-----------|--------|
 | `stacks/iot` | [p4n4-iot](https://github.com/raisga/p4n4-iot) |
 | `stacks/ai` | [p4n4-ai](https://github.com/raisga/p4n4-ai) |
-| `stacks/edge` | [p4n4-edge](https://github.com/raisga/p4n4-edge) |
+| `stacks/extras` | [p4n4-extras](https://github.com/raisga/p4n4-extras) (formerly p4n4-edge) |
 | `lib` | [p4n4-lib](https://github.com/raisga/p4n4-lib) |
 | `tools/hw` | [p4n4-hw](https://github.com/raisga/p4n4-hw) |
 | `tools/templates` | [p4n4-templates](https://github.com/raisga/p4n4-templates) |
@@ -81,12 +81,14 @@ Maintainers with access check them out with `git submodule update --init --check
   │  (Telegraf: host + broker metrics)      │
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
-  │  stacks/ai  (GenAI stack)               │
-  │  Ollama  (Letta · n8n)                  │
+  │  stacks/ai  (AI stack)                  │
+  │  Ollama  (Letta · n8n · System 1)       │
+  │  (Inference runner: ONNX / Edge Impulse)│
   └─────────────────────────────────────────┘
   ┌─────────────────────────────────────────┐
-  │  stacks/edge  (Edge AI stack)           │
-  │  Inference runner (ONNX / Edge Impulse) │
+  │  stacks/extras  (optional services)     │
+  │  (none by default; the core never       │
+  │   depends on them)                      │
   └─────────────────────────────────────────┘
 
   All stacks share the p4n4-net Docker bridge network.
@@ -132,6 +134,12 @@ p4n4 up
 
 The CLI scaffolds compose files, generates secrets, and starts the stacks in the correct order.
 
+No board yet? `p4n4 up --emu rpi5` runs the project on your workstation sized like a
+Raspberry Pi 5 (CPU, memory and disk limits, arm64 images through QEMU), with
+[p4n4-emu](https://github.com/raisga/p4n4-emu) installed. See the
+[Emulator reference](https://github.com/raisga/p4n4-docs/blob/main/reference/emulator.md)
+for its profiles and what it does and doesn't reproduce.
+
 ### Manual Setup (without CLI)
 
 ```bash
@@ -140,22 +148,22 @@ cd stacks/iot
 cp .env.example .env  # replace every password and token: the examples are public
 docker compose up -d && cd ../..
 
-# AI stack (after IoT is healthy)
+# AI stack (after IoT is healthy). Add ei-runner to COMPOSE_PROFILES in .env for edge
+# inference: an ONNX or Edge Impulse model, or mock results without one
 cd stacks/ai
 cp .env.example .env  # INFLUXDB_TOKEN must match stacks/iot/.env
 docker compose up -d && cd ../..
 
-# Edge stack (optional; runs an ONNX or Edge Impulse model, or mock results without one)
-cd stacks/edge
+# Extras (optional; nothing starts until COMPOSE_PROFILES in its .env lists a service)
+cd stacks/extras
 cp .env.example .env
-docker compose up -d
 ```
 
 The `.env.example` files hold placeholder secrets that anyone can read here: `INFLUXDB_PASSWORD`,
 `INFLUXDB_TOKEN`, `GRAFANA_PASSWORD`, `NODE_RED_PASSWORD`, `LETTA_SERVER_PASSWORD` and
 `N8N_ENCRYPTION_KEY`. Replace them before the first start (`p4n4 init` generates them).
 
-To run the AI or edge stack without the IoT stack, create the network first, with the label
+To run the AI stack or the extras without the IoT stack, create the network first, with the label
 Compose gives its own networks. Without the label, Compose 2.19.1 to 5.3.1 refuse to start
 the IoT stack on it later ("incorrect label"):
 
@@ -164,7 +172,7 @@ docker network create --driver bridge --subnet 172.20.0.0/16 \
   --label com.docker.compose.network=p4n4-net p4n4-net
 ```
 
-> **Choosing services:** every service is optional. Each stack's `.env` lists the ones that start in `COMPOSE_PROFILES`; the defaults are the MING stack (`mqtt,influxdb,node-red,grafana`), Ollama (`ollama`) and the inference runner (`ei-runner`). Add `telegraf` in `stacks/iot` for host and broker metrics, or `letta,n8n` in `stacks/ai`. See each stack's README.
+> **Choosing services:** every service is optional. Each stack's `.env` lists the ones that start in `COMPOSE_PROFILES`; the defaults are the MING stack (`mqtt,influxdb,node-red,grafana`) and Ollama (`ollama`); extras start nothing. Add `telegraf` in `stacks/iot` for host and broker metrics, or `letta,n8n,system1,ei-runner` in `stacks/ai` (`ei-runner` is the Edge Impulse / ONNX inference runner, formerly the edge stack). `p4n4 init --layer all` turns the runner on. See each stack's README.
 
 > **Cross-stack secrets:** `INFLUXDB_TOKEN`, `INFLUXDB_ORG`, and `INFLUXDB_BUCKET` must be identical across all stack `.env` files.
 
@@ -182,7 +190,7 @@ docker network create --driver bridge --subnet 172.20.0.0/16 \
 | n8n (optional) | `5678` | ai |
 | Letta (optional) | `8283` (localhost only) | ai |
 | Ollama API | `11434` (localhost only) | ai |
-| Edge inference runner | `8080` (localhost only) | edge |
+| Edge inference runner (optional, `ei-runner`) | `8080` (localhost only) | ai |
 | p4n4 REST API | `8000` (localhost only) | api |
 | p4n4 Dashboard (web) | `8088` | dashboard |
 

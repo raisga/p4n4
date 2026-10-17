@@ -205,7 +205,7 @@ cmd_p4n4() {
 		local -a extra=()
 		local name src
 		# Local checkouts unless the command line names its own
-		for name in iot ai edge dashboard; do
+		for name in iot ai extras dashboard; do
 			[[ " $* " == *" --source-$name"* ]] && continue
 			src=$ROOT/stacks/$name
 			[[ $name == dashboard ]] && src=$ROOT/dashboard

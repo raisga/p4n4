@@ -157,7 +157,7 @@ if ((DOCKER_UP)); then
 	if docker network inspect p4n4-net >/dev/null 2>&1; then
 		ok "network p4n4-net exists"
 	else
-		printf '  %s- network p4n4-net not created yet (the iot layer creates it; ai and edge need it)%s\n' "$DIM" "$NC"
+		printf '  %s- network p4n4-net not created yet (the iot layer creates it; ai and extras need it)%s\n' "$DIM" "$NC"
 	fi
 fi
 
