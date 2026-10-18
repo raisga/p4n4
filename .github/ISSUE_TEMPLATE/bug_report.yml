@@ -14,7 +14,7 @@ body:
       options:
         - p4n4-iot
         - p4n4-ai
-        - p4n4-edge
+        - p4n4-extras
         - p4n4-lib
         - p4n4-cli
         - p4n4-api

@@ -9,8 +9,13 @@ body:
       options:
         - p4n4-iot
         - p4n4-ai
-        - p4n4-edge
+        - p4n4-extras
+        - p4n4-lib
         - p4n4-cli
+        - p4n4-api
+        - p4n4-dashboard
+        - p4n4-hw
+        - p4n4-emu
         - p4n4-templates
         - p4n4-docs
         - Cross-cutting

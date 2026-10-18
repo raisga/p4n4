@@ -39,8 +39,6 @@ p4n4/
 │   ├── templates/    # Template registry (projects + dashboard themes)
 │   └── emu/          # Hardware emulator — workstation dev with Docker resource limits
 ├── docs/             # Full technical documentation site
-├── projects/
-│   └── sandbox/      # Sandbox p4n4 projects for local testing (private repo)
 └── web/
     ├── blog/         # Project blog
     └── p4n4.com/     # Public-facing website (private repo)
@@ -61,9 +59,8 @@ p4n4/
 | `docs` | [p4n4-docs](https://github.com/raisga/p4n4-docs) |
 | `web/blog` | [p4n4-blog](https://github.com/raisga/p4n4-blog) |
 | `web/p4n4.com` | p4n4.com (private) |
-| `projects/sandbox` | p4n4-sandbox (private) |
 
-The website and sandbox submodules are set to `update = none`, so a recursive clone skips them.
+The website submodules are set to `update = none`, so a recursive clone skips them.
 Maintainers with access check them out with `git submodule update --init --checkout <path>`.
 
 ---
@@ -121,6 +118,12 @@ cd p4n4
 
 # If already cloned without submodules:
 git submodule update --init --recursive
+```
+
+Submodule URLs are HTTPS so anyone can clone. Maintainers who push over SSH can rewrite them once:
+
+```bash
+git config --global url."git@github.com:".insteadOf https://github.com/
 ```
 
 ### Quick Start (CLI)

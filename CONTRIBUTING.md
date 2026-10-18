@@ -31,7 +31,7 @@ docs: update getting-started guide
 
 ## Stack-specific guidelines
 
-### Docker Compose stacks (p4n4-iot, p4n4-ai, p4n4-edge)
+### Docker Compose stacks (p4n4-iot, p4n4-ai, p4n4-extras)
 
 - Run `docker compose config --quiet` before pushing.
 - Update `.env.example` for every new environment variable.

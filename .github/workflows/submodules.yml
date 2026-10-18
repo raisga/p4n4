@@ -1,0 +1,40 @@
+name: Submodules
+
+# .gitmodules and the recorded gitlinks must agree: a path listed in
+# .gitmodules but never `git add`ed is missing from every fresh clone.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check .gitmodules against the index
+        run: |
+          status=0
+          declared=$(git config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}' | sort)
+          recorded=$(git ls-files -s | awk '$1 == "160000" {print $4}' | sort)
+
+          for path in $(comm -23 <(echo "$declared") <(echo "$recorded")); do
+            echo "::error file=.gitmodules::$path is in .gitmodules but has no gitlink (git add $path)"
+            status=1
+          done
+          for path in $(comm -13 <(echo "$declared") <(echo "$recorded")); do
+            echo "::error::$path is a gitlink with no .gitmodules entry"
+            status=1
+          done
+
+          while read -r key path; do
+            name=${key#submodule.}
+            name=${name%.path}
+            [[ $name == "$path" ]] || { echo "::error file=.gitmodules::submodule \"$name\" should be named after its path ($path)"; status=1; }
+            url=$(git config -f .gitmodules --get "submodule.$name.url")
+            [[ $url == https://* ]] || { echo "::error file=.gitmodules::$path uses $url; public clones need an https:// URL"; status=1; }
+          done < <(git config -f .gitmodules --get-regexp '\.path$')
+
+          exit $status
