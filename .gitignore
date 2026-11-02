@@ -4,6 +4,12 @@
 # Dev venv (scripts/dev setup)
 .venv/
 
+# Cargo build output: the workspace's, and each spike's (spikes/<id>/target/)
+target/
+
+# A golden capture that stopped part-way (cargo xtask golden capture)
+*.partial/
+
 # Python caches (scripts/dev_api.py, uv run)
 __pycache__/
 *.py[cod]

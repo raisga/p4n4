@@ -1,0 +1,13 @@
+# The contrast for dep-disabled-optional: the same dependency without required: false.
+name: p4n4s1-dep-req
+services:
+  app:
+    image: busybox:1.36
+    command: ["true"]
+    depends_on:
+      broker:
+        condition: service_started
+  broker:
+    image: busybox:1.36
+    command: ["true"]
+    profiles: [broker]

@@ -1,0 +1,10 @@
+# The ai layer without the iot layer: agent depends on mqtt, which no file defines (V004).
+name: p4n4s1-dep-undef
+services:
+  agent:
+    image: busybox:1.36
+    command: ["true"]
+    depends_on:
+      mqtt:
+        condition: service_started
+        required: false

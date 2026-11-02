@@ -1,0 +1,8 @@
+# §5.3 says Compose rejects a root file that redefines an included service.
+name: p4n4s1-redefine
+include:
+  - a/compose.yaml
+services:
+  inc:
+    ports:
+      - "127.0.0.1:18110:8080"

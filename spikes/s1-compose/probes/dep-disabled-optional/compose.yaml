@@ -1,0 +1,14 @@
+# app depends on broker, whose profile is not active, with required: false.
+name: p4n4s1-dep-opt
+services:
+  app:
+    image: busybox:1.36
+    command: ["true"]
+    depends_on:
+      broker:
+        condition: service_started
+        required: false
+  broker:
+    image: busybox:1.36
+    command: ["true"]
+    profiles: [broker]

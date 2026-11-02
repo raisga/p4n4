@@ -1,0 +1,4 @@
+services:
+  inc:
+    image: busybox:1.36
+    command: ["true"]

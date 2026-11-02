@@ -1,0 +1,5 @@
+# Published ports for the iot layer, as `p4n4 sync` would generate them (§5.3).
+services:
+  mqtt:
+    ports:
+      - "127.0.0.1:18101:1883"

@@ -1,0 +1,6 @@
+# Is include's env_file used to interpolate the included file, and is it resolved relative
+# to the including file? include.env sits next to this file; a/ has no env file.
+name: p4n4s1-inc-env
+include:
+  - path: a/compose.yaml
+    env_file: include.env

@@ -1,0 +1,6 @@
+services:
+  inc:
+    image: busybox:1.36
+    command: ["true"]
+    environment:
+      P4N4S1_INC: ${P4N4S1_INC:-unset}

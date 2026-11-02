@@ -1,0 +1,6 @@
+services:
+  agent:
+    depends_on:
+      mqtt:
+        condition: service_started
+        required: false

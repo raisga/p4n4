@@ -1,0 +1,18 @@
+# S1 test project, shaped like the generated compose.yaml in RUST_REWRITE_PLAN.md §5.3.
+# static-checks.sh copies it to a work directory and writes .env from dot.env.
+name: p4n4s1-main
+include:
+  - path: [core/compose.yaml, .p4n4/ports/core.yaml]
+    env_file: .env
+  - path: [iot/compose.yaml, .p4n4/ports/iot.yaml]
+    env_file: .env
+  - path: ai/compose.yaml
+    env_file: .env
+networks:
+  default:
+    # The plan's name. Set P4N4S1_NETWORK if the engine already has a p4n4-net.
+    name: ${P4N4S1_NETWORK:-p4n4-net}
+    ipam:
+      config:
+        - subnet: 10.201.1.0/24
+          ip_range: 10.201.1.128/25   # dynamic addresses; keeps 10.201.1.2 free

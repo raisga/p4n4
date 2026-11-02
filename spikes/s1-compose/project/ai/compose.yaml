@@ -1,0 +1,15 @@
+services:
+  agent:
+    image: alpine:3.20
+    container_name: p4n4s1-agent
+    profiles: [agent]
+    command: ["sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"]
+    environment:
+      MQTT_HOST: ${MQTT_HOST:-unset}
+    depends_on:
+      server:               # crosses into the core layer (V004)
+        condition: service_healthy
+        required: false
+      mqtt:                 # crosses into the iot layer, which may be absent (V004)
+        condition: service_started
+        required: false

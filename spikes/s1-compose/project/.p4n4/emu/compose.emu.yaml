@@ -1,0 +1,8 @@
+# Emulator overlay (§6.6), passed as a second -f after compose.yaml.
+services:
+  server:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 64M

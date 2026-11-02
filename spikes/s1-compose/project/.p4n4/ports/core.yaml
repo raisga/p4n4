@@ -1,0 +1,5 @@
+# Published ports for the core layer, as `p4n4 sync` would generate them (§5.3).
+services:
+  server:
+    ports:
+      - "127.0.0.1:18100:8080"

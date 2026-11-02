@@ -1,0 +1,5 @@
+services:
+  agent:
+    image: alpine:3.20
+    container_name: p4n4s1-depgen-agent
+    command: ["true"]

@@ -1,0 +1,28 @@
+# Layer file: no ports and no top-level networks (V003). Every service except server
+# has a profile of its own name (V009).
+services:
+  server:
+    image: busybox:1.36
+    container_name: p4n4s1-server
+    command: ["sh", "-c", "mkdir -p /www && echo ok > /www/index.html && exec httpd -f -p 8080 -h /www"]
+    environment:
+      P4N4S1_MSG: ${P4N4S1_MSG:-unset}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    networks:
+      default:
+        ipv4_address: 10.201.1.2
+
+  # Like the plan's simulator (§6.6): its profile is not in COMPOSE_PROFILES.
+  sim:
+    image: busybox:1.36
+    container_name: p4n4s1-sim
+    profiles: [sim]
+    command: ["sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"]
+    depends_on:
+      mqtt:                 # crosses into the iot layer (V004)
+        condition: service_started
+        required: false

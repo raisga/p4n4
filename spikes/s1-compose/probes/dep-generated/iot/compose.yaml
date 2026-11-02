@@ -1,0 +1,5 @@
+services:
+  mqtt:
+    image: busybox:1.36
+    container_name: p4n4s1-depgen-mqtt
+    command: ["true"]

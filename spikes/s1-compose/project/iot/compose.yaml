@@ -1,0 +1,6 @@
+services:
+  mqtt:
+    image: busybox:1.36
+    container_name: p4n4s1-mqtt
+    profiles: [mqtt]
+    command: ["sh", "-c", "mkdir -p /www && echo ok > /www/index.html && exec httpd -f -p 1883 -h /www"]

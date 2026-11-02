@@ -1,0 +1,8 @@
+# V004 alternative: the layer file has no cross-layer depends_on; a generated file in the
+# same include entry adds it, only while the other layer is present.
+name: p4n4s1-depgen
+include:
+  - path:
+      - ai/compose.yaml
+      - gen/ai.yaml
+  - iot/compose.yaml
